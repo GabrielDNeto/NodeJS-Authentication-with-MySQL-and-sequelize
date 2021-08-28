@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User')
+const bcrypt = require('bcryptjs');
+
 
 router.get('/users', async (req, res) => {
   try {
@@ -12,25 +14,37 @@ router.get('/users', async (req, res) => {
 })
 
 router.post('/register', async (req, res) => {
-  try {
-    const user = req.body;
-    await User.create(user)
-    res.send(user)
-  } catch (error) {
-    res.status(400).send({error: 'Cannot register new user'})
-  }
-})
+  const { email } = req.body
 
-router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
   try {
-    const user = User.findOne({ email, password})
-
-    if(!user) {
-      return res.send(401)
+    if(await User.findOne({where: { email }})){
+      return res.status(400).send({ error: 'User already exists' })
     }
 
-    res.send(user)
+    const user = await User.create(req.body)
+    user.password = undefined;
+
+    return res.send({ user })
+
+  } catch (error) {
+    return res.status(400).send({ error: 'Registration Failed' })
+  }
+});
+
+router.post('/login', async (req, res) => {
+  const { email, password } =  req.body;
+
+  try {
+    const user = await User.findOne({where: {email: email}})
+
+    if(!user) {
+      return res.status(400).send({error: "User not found"})
+    }
+
+    if (!await bcrypt.compare(password, user.password))
+      return res.status(400).send({ error: 'Invalid password'})
+
+    res.send({ user })
 
   } catch (error) {
     res.status(401).send({error: 'Login Failed'})
